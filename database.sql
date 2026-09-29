@@ -1,61 +1,82 @@
-CREATE DATABASE IF NOT EXISTS sai_restaurant;
-USE sai_restaurant;
-
-CREATE TABLE customers (
-  customer_id INT AUTO_INCREMENT PRIMARY KEY,
-  name VARCHAR(100) NOT NULL,
-  phone VARCHAR(20) NOT NULL,
-  email VARCHAR(120),
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+-- 1. Dining Tables Table Create Cheyyadam
+CREATE TABLE IF NOT EXISTS dining_tables (
+    table_id INT PRIMARY KEY AUTO_INCREMENT,
+    table_number INT NOT NULL UNIQUE,
+    seating_capacity INT NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE
 );
 
-CREATE TABLE menu_items (
-  item_id INT AUTO_INCREMENT PRIMARY KEY,
-  name VARCHAR(120) NOT NULL,
-  category VARCHAR(50) NOT NULL,
-  description TEXT,
-  price DECIMAL(10,2) NOT NULL,
-  image VARCHAR(255),
-  available BOOLEAN DEFAULT TRUE
+-- 2. Customers Table Create Cheyyadam
+CREATE TABLE IF NOT EXISTS customers (
+    customer_id INT PRIMARY KEY AUTO_INCREMENT,
+    first_name VARCHAR(50) NOT NULL,
+    last_name VARCHAR(50) NOT NULL,
+    email VARCHAR(100) UNIQUE,
+    phone_number VARCHAR(15) NOT NULL
 );
 
-CREATE TABLE reservations (
-  reservation_id INT AUTO_INCREMENT PRIMARY KEY,
-  customer_id INT NOT NULL,
-  reservation_date DATE NOT NULL,
-  reservation_time TIME NOT NULL,
-  guests INT NOT NULL,
-  status ENUM('pending','confirmed','cancelled') DEFAULT 'pending',
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (customer_id) REFERENCES customers(customer_id)
+-- 3. Reservations Table Create Cheyyadam
+CREATE TABLE IF NOT EXISTS reservations (
+    reservation_id INT PRIMARY KEY AUTO_INCREMENT,
+    table_id INT NOT NULL,
+    customer_id INT NOT NULL,
+    reservation_date DATE NOT NULL,
+    start_time TIME NOT NULL,
+    end_time TIME NOT NULL,
+    status ENUM('Confirmed', 'Cancelled', 'Completed') DEFAULT 'Confirmed',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (table_id) REFERENCES dining_tables(table_id),
+    FOREIGN KEY (customer_id) REFERENCES customers(customer_id)
 );
 
-CREATE TABLE orders (
-  order_id INT AUTO_INCREMENT PRIMARY KEY,
-  customer_id INT,
-  total_amount DECIMAL(10,2) NOT NULL DEFAULT 0,
-  order_status ENUM('pending','confirmed','preparing','completed','cancelled') DEFAULT 'pending',
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (customer_id) REFERENCES customers(customer_id)
-);
+-- 4. Testing Kosam Konni Sample Tables Add Cheyyadam
+INSERT IGNORE INTO dining_tables (table_number, seating_capacity) VALUES
+(1, 2), (2, 2), (3, 4), (4, 4), (5, 6);
 
-CREATE TABLE order_items (
-  order_item_id INT AUTO_INCREMENT PRIMARY KEY,
-  order_id INT NOT NULL,
-  item_id INT NOT NULL,
-  quantity INT NOT NULL DEFAULT 1,
-  price DECIMAL(10,2) NOT NULL,
-  FOREIGN KEY (order_id) REFERENCES orders(order_id),
-  FOREIGN KEY (item_id) REFERENCES menu_items(item_id)
-);
+-- 5. Real-Time Booking Stored Procedure (Double Booking Apadaniki)
+DELIMITER //
 
-INSERT INTO menu_items (name,category,description,price) VALUES
-('Paneer Tikka','starters','Char-grilled cottage cheese, peppers & aromatic spices.',280),
-('Chicken 65','starters','Crispy southern-style chicken with curry leaves.',320),
-('Butter Chicken','mains','Silky tomato gravy, cream, butter & tandoori chicken.',390),
-('Paneer Butter Masala','mains','Soft paneer in a rich makhani sauce.',340),
-('Hyderabadi Chicken Biryani','biryani','Fragrant basmati rice, tender chicken and royal spices.',420),
-('Mughlai Biryani','biryani','Fragrant basmati rice, tender chicken and royal spices and extra taste.',499),
-('Mutton Dum Biryani','biryani','Slow-cooked mutton layered with aromatic basmati rice.',480),
-('Gulab Jamun','desserts','Warm milk dumplings finished with saffron syrup.',160),
-('Mango Lassi','drinks','Fresh Alphonso mango blended with chilled yoghurt.',140);
+CREATE PROCEDURE BookTableRealTime(
+    IN p_table_id INT,
+    IN p_customer_id INT,
+    IN p_res_date DATE,
+    IN p_start TIME,
+    IN p_end TIME,
+    OUT p_result VARCHAR(50)
+)
+BEGIN
+    DECLARE overlap_count INT;
+
+    -- Transaction Start (Locking kosam)
+    START TRANSACTION;
+
+    -- Table ni lock cheyyadam (vere vallu same time ki try cheyyakunda)
+    SELECT table_id INTO @locked_table 
+    FROM dining_tables 
+    WHERE table_id = p_table_id 
+    FOR UPDATE;
+
+    -- Time overlap avuthundemo check cheyyadam
+    SELECT COUNT(*) INTO overlap_count 
+    FROM reservations 
+    WHERE table_id = p_table_id 
+      AND reservation_date = p_res_date
+      AND status = 'Confirmed'
+      AND (start_time < p_end AND end_time > p_start);
+
+    -- Overlap lekapothe booking confirm cheyyadam
+    IF overlap_count = 0 THEN
+        INSERT INTO reservations (table_id, customer_id, reservation_date, start_time, end_time) 
+        VALUES (p_table_id, p_customer_id, p_res_date, p_start, p_end);
+        
+        SET p_result = 'Success';
+        COMMIT;
+    ELSE
+        -- Overlap ayithe booking cancel cheyyadam
+        SET p_result = 'Table already booked for this time';
+        ROLLBACK;
+    END IF;
+
+END //
+
+DELIMITER ;
