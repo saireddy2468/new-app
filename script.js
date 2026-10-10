@@ -36,3 +36,32 @@ document.getElementById("reservationForm").addEventListener("submit",e=>{
   e.target.reset();
   dateInput.min=today;
 });
+// 1. Configure the email transport system
+const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+        user: 'ambatihemasai2468@gmail.com', // Replace with your Gmail address
+        pass: 'gtpc vmch hkkg qfxm' // Replace with the App Password (no spaces)
+    }
+});
+
+// 2. Create a function to send the email notification
+function sendBookingNotification(customerName, date, time) {
+    const mailOptions = {
+        from: 'your-email@gmail.com',
+        to: 'admin-email@gmail.com', // The email address where you want to receive the alerts
+        subject: 'New Table Booking Alert!',
+        text: `Hello Admin, \n\nA new table booking has been received!\n\nCustomer Name: ${customerName}\nBooking Date: ${date}\nBooking Time: ${time}\n\nPlease keep the table ready.`
+    };
+
+    transporter.sendMail(mailOptions, function(error, info){
+        if (error) {
+            console.log('Error sending email:', error);
+        } else {
+            console.log('Success! Email sent: ' + info.response);
+        }
+    });
+}
+  e.target.reset();
+  dateInput.min=today;
+});
